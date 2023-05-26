@@ -4,7 +4,7 @@
 import (
     libp2p "github.com/libp2p/go-libp2p"
     pubsub "github.com/libp2p/go-libp2p-pubsub"
-	plebbitValidator "github.com/plebbit/go-libp2p-pubsub-plebbit-validator"
+    plebbitValidator "github.com/plebbit/go-libp2p-pubsub-plebbit-validator"
 )
 
 func main () {
