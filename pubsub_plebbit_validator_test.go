@@ -2,9 +2,11 @@ package pubsubPlebbitValidator
 
 import (
     "context"
-    // "fmt"
+    "fmt"
+    "time"
     libp2p "github.com/libp2p/go-libp2p"
     pubsub "github.com/libp2p/go-libp2p-pubsub"
+    codec "github.com/ugorji/go/codec"
     "testing"
 )
 
@@ -29,10 +31,60 @@ func createPubsubTopic(ctx context.Context) *pubsub.Topic {
     return topic
 }
 
-func TestPublish(t *testing.T) {
-    ctx := context.Background()
+func createChallengeRequestMessage(privateKey []byte) map[string]interface{} {
+    // create message
+    message := map[string]interface{}{}
+    message["type"] = "CHALLENGEREQUEST"
+    message["timestamp"] = time.Now().Unix()
+    message["protocolVersion"] = "1.0.0"
+    message["userAgent"] = "/pubsub-plebbit-validator/0.0.1"
+    message["challengeRequestId"] = "challenge request id"
+    message["acceptedChallengeTypes"] = []string{"image/png"}
+    message["encryptedPublication"] = map[string]interface{}{}    
 
+    // sign
+    signedPropertyNames := []string{"type", "timestamp", "challengeRequestId", "acceptedChallengeTypes", "encryptedPublication"}
+    signature := map[string]interface{}{}
+    bytesToSign := getBytesToSign(message, signedPropertyNames)
+    signature["signature"] = signEd25519(bytesToSign, privateKey)
+    signature["publicKey"] = getPublicKeyFromPrivateKey(privateKey)
+    signature["signedPropertyNames"] = signedPropertyNames
+    signature["type"] = "ed25519"
+    message["signature"] = signature
+
+    return message
+}
+
+func getBytesToSign(message map[string]interface{}, signedPropertyNames []string) []byte {
+    // construct the cbor
+    propsToSign := map[string]interface{}{}
+    for _, propertyName := range signedPropertyNames {
+        if (message[propertyName] != nil) {
+            propsToSign[propertyName] = message[propertyName]
+        }
+    }
+    var bytesToSign []byte
+    cbor := codec.NewEncoderBytes(&bytesToSign, new(codec.CborHandle))
+    cbor.Encode(propsToSign)
+    return bytesToSign
+}
+
+func TestPublish(t *testing.T) {
+    privateKey, err := generatePrivateKey()
+    if (err != nil) {
+        panic(err)
+    }
+    message := createChallengeRequestMessage(privateKey)
+
+    // encode message
+    var encodedMessage []byte
+    cbor := codec.NewEncoderBytes(&encodedMessage, new(codec.CborHandle))
+    cbor.Encode(message)
+
+    fmt.Println("message", message, "encodedMessage", encodedMessage)
+
+    // publish message
+    ctx := context.Background()
     topic := createPubsubTopic(ctx)
-    message := []byte("hello")
-    topic.Publish(ctx, message)
+    topic.Publish(ctx, encodedMessage)
 }
