@@ -2,11 +2,10 @@ package pubsubPlebbitValidator
 
 import (
     "context"
-    "fmt"
+    // "fmt"
     "time"
     libp2p "github.com/libp2p/go-libp2p"
     pubsub "github.com/libp2p/go-libp2p-pubsub"
-    codec "github.com/ugorji/go/codec"
     "testing"
 )
 
@@ -55,36 +54,20 @@ func createChallengeRequestMessage(privateKey []byte) map[string]interface{} {
     return message
 }
 
-func getBytesToSign(message map[string]interface{}, signedPropertyNames []string) []byte {
-    // construct the cbor
-    propsToSign := map[string]interface{}{}
-    for _, propertyName := range signedPropertyNames {
-        if (message[propertyName] != nil) {
-            propsToSign[propertyName] = message[propertyName]
-        }
-    }
-    var bytesToSign []byte
-    cbor := codec.NewEncoderBytes(&bytesToSign, new(codec.CborHandle))
-    cbor.Encode(propsToSign)
-    return bytesToSign
-}
-
-func TestPublish(t *testing.T) {
+func TestValidMessage(t *testing.T) {
     privateKey, err := generatePrivateKey()
     if (err != nil) {
         panic(err)
     }
     message := createChallengeRequestMessage(privateKey)
-
-    // encode message
-    var encodedMessage []byte
-    cbor := codec.NewEncoderBytes(&encodedMessage, new(codec.CborHandle))
-    cbor.Encode(message)
-
-    fmt.Println("message", message, "encodedMessage", encodedMessage)
+    encodedMessage := cborEncode(message)
 
     // publish message
     ctx := context.Background()
     topic := createPubsubTopic(ctx)
     topic.Publish(ctx, encodedMessage)
 }
+
+// func TestInvalidMessageSignature(t *testing.T) {
+
+// }

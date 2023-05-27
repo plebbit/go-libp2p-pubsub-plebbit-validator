@@ -2,6 +2,7 @@ package pubsubPlebbitValidator
 
 import (
     "crypto/ed25519"
+    codec "github.com/ugorji/go/codec"
 )
 
 func generatePrivateKey() ([]byte, error) {
@@ -28,4 +29,20 @@ func signEd25519(bytesToSign []byte, privateKey []byte) ([]byte) {
 func verifyEd25519(bytesToSign []byte, signature []byte, publicKey []byte) (bool) {
     isValid := ed25519.Verify(publicKey, bytesToSign, signature)
     return isValid
+}
+
+func getBytesToSign(message map[string]interface{}, signedPropertyNames []string) []byte {
+    // construct the cbor
+    propsToSign := map[string]interface{}{}
+    for _, propertyName := range signedPropertyNames {
+        if (message[propertyName] != nil) {
+            propsToSign[propertyName] = message[propertyName]
+        }
+    }
+    var bytesToSign []byte
+    cborHandle := &codec.CborHandle{}
+    cborHandle.Canonical = true
+    encoder := codec.NewEncoderBytes(&bytesToSign, cborHandle)
+    encoder.Encode(propsToSign)
+    return bytesToSign
 }
