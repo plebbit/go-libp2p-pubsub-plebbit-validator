@@ -8,24 +8,14 @@ import (
 )
 
 func verifyMessageSignature(message map[string]interface{}) bool {
-    signature, err := getSignatureFromMessage(message)
-    if (err != nil) {
-        fmt.Println("failed cbor decode", err)
-        return false
-    }
-    signedPropertyNames, err := getSignedPropertyNamesFromMessage(message)
-    if (err != nil) {
-        fmt.Println("failed cbor decode", err)
-        return false
-    }
-    publicKey, err := getPublicKeyFromMessage(message)
+    signature, err := toSignature(message["signature"])
     if (err != nil) {
         fmt.Println("failed cbor decode", err)
         return false
     }
 
-    bytesToSign := getBytesToSign(message, signedPropertyNames)
-    signatureVerified := verifyEd25519(bytesToSign, signature, publicKey)
+    bytesToSign := getBytesToSign(message, signature.signedPropertyNames)
+    signatureVerified := verifyEd25519(bytesToSign, signature.signature, signature.publicKey)
     if (signatureVerified == false) {
         fmt.Println("invalid signature")
         return false

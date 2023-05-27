@@ -26,49 +26,45 @@ func cborEncode(decoded map[string]interface{}) ([]byte) {
     return encoded
 }
 
-func getSignatureFromMessage(message map[string]interface{}) ([]byte, error) {
-    err := errors.New("failed convert message.signature.signature to []byte")
-    signature, ok := message["signature"].(map[interface{}]interface{})
-    if !ok {
-        return []byte{}, err
-    }
-    signatureBytes, ok := signature["signature"].([]byte)
-    if !ok {
-        return []byte{}, err
-    }
-    return signatureBytes, nil
+type Signature struct {
+    signature []byte
+    publicKey []byte
+    signedPropertyNames []string
 }
 
-func getSignedPropertyNamesFromMessage(message map[string]interface{}) ([]string, error) {
-    err := errors.New("failed convert message.signature.signedPropertyNames to []string")
-    signature, ok := message["signature"].(map[interface{}]interface{})
+// convert the cbor decoded message["signature"] to a usable Signature
+func toSignature(_messageSignature interface{}) (Signature, error) {
+    messageSignature, ok := _messageSignature.(map[interface{}]interface{})
     if !ok {
-        return []string{}, err
+        return Signature{}, errors.New("failed convert message.signature to map[interface{}]interface{}")
     }
-    _signedPropertyNames, ok := signature["signedPropertyNames"].([]interface{})
+
+    signature, ok := messageSignature["signature"].([]byte)
     if !ok {
-        return []string{}, err
+        return Signature{}, errors.New("failed convert message.signature.signature to []byte")
+    }
+
+    publicKey, ok := messageSignature["publicKey"].([]byte)
+    if !ok {
+        return Signature{}, errors.New("failed convert message.signature.publicKey to []byte")
+    }
+
+    _signedPropertyNames, ok := messageSignature["signedPropertyNames"].([]interface{})
+    if !ok {
+        return Signature{}, errors.New("failed convert message.signature.signedPropertyNames to []string")
     }
     signedPropertyNames := make([]string, len(_signedPropertyNames))
     for i, name := range _signedPropertyNames {
         str, ok := name.(string)
         if !ok {
-            return []string{}, err
+            return Signature{}, errors.New("failed convert message.signature.signedPropertyNames to []string")
         }
         signedPropertyNames[i] = str
     }
-    return signedPropertyNames, nil
-}
 
-func getPublicKeyFromMessage(message map[string]interface{}) ([]byte, error) {
-    err := errors.New("failed convert message.signature.publicKey to []byte")
-    signature, ok := message["signature"].(map[interface{}]interface{})
-    if !ok {
-        return []byte{}, err
-    }
-    publicKeyBytes, ok := signature["publicKey"].([]byte)
-    if !ok {
-        return []byte{}, err
-    }
-    return publicKeyBytes, nil
+    return Signature{
+        signature,
+        publicKey,
+        signedPropertyNames,
+    }, nil
 }
