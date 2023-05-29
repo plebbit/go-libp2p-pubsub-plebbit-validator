@@ -5,13 +5,13 @@ import (
     codec "github.com/ugorji/go/codec"
 )
 
-func generatePrivateKey() ([]byte, error) {
+func generatePrivateKey() ([]byte) {
     _, privateKey, err := ed25519.GenerateKey(nil)
-    if err != nil {
-        return []byte{}, err
+    if (err != nil) {
+        panic(err)
     }
     // the real private key without suffix is .Seed()
-    return privateKey.Seed(), nil
+    return privateKey.Seed()
 }
 
 func getPublicKeyFromPrivateKey(privateKey []byte) ([]byte) {

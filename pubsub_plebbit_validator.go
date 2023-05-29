@@ -24,7 +24,7 @@ func verifyMessageSignature(message map[string]interface{}) bool {
 }
 
 func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
-    fmt.Println("context", ctx, "peerId", peerId, "pubsubMessage", pubsubMessage)
+    // fmt.Println("context", ctx, "peerId", peerId, "pubsubMessage", pubsubMessage)
     message, err := cborDecode(pubsubMessage.Data)
     if (err != nil) {
         fmt.Println("failed cbor decode", err)
@@ -43,6 +43,6 @@ func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
 
     // validate pubsub topic if from subplebbit owner
 
-    fmt.Println(message["type"])
+    // fmt.Println(message["type"])
     return true
 }
