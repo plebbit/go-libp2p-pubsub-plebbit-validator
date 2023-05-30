@@ -6,8 +6,6 @@ import (
     libp2p "github.com/libp2p/go-libp2p"
     pubsub "github.com/libp2p/go-libp2p-pubsub"
     "testing"
-    // "fmt"
-    // "reflect"
 )
 
 func createPubsubTopic(ctx context.Context) *pubsub.Topic {
@@ -35,8 +33,7 @@ func publishPubsubMessage(encodedMessage []byte) error {
     return topic.Publish(ctx, encodedMessage)
 }
 
-func createPubsubChallengeRequestMessage(privateKey []byte) map[string]interface{} {
-    // create message
+func createPubsubChallengeRequestMessage() map[string]interface{} {
     message := map[string]interface{}{}
     message["type"] = "CHALLENGEREQUEST"
     message["timestamp"] = time.Now().Unix()
@@ -44,8 +41,11 @@ func createPubsubChallengeRequestMessage(privateKey []byte) map[string]interface
     message["userAgent"] = "/pubsub-plebbit-validator/0.0.1"
     message["challengeRequestId"] = "challenge request id"
     message["acceptedChallengeTypes"] = []string{"image/png"}
-    message["encryptedPublication"] = map[string]interface{}{}    
-    // sign
+    message["encryptedPublication"] = map[string]interface{}{}
+    return message
+}
+
+func signPubsubMessage(message map[string]interface{}, privateKey []byte) {
     signedPropertyNames := []string{"type", "timestamp", "challengeRequestId", "acceptedChallengeTypes", "encryptedPublication"}
     signature := map[string]interface{}{}
     bytesToSign := getBytesToSign(message, signedPropertyNames)
@@ -54,17 +54,12 @@ func createPubsubChallengeRequestMessage(privateKey []byte) map[string]interface
     signature["signedPropertyNames"] = signedPropertyNames
     signature["type"] = "ed25519"
     message["signature"] = signature
-    // encode / decode so exactly like a received message
-    decodedMessage, err := cborDecode(cborEncode(message))
-    if err != nil {
-        panic(err)
-    }
-    return decodedMessage
 }
 
 func TestValidPubsubMessage(t *testing.T) {
     privateKey := generatePrivateKey()
-    message := createPubsubChallengeRequestMessage(privateKey)
+    message := createPubsubChallengeRequestMessage()
+    signPubsubMessage(message, privateKey)
     encodedMessage := cborEncode(message)
     err := publishPubsubMessage(encodedMessage)
     if (err != nil) {
@@ -74,13 +69,75 @@ func TestValidPubsubMessage(t *testing.T) {
 
 func TestInvalidPubsubMessageSignature(t *testing.T) {
     privateKey := generatePrivateKey()
-    message := createPubsubChallengeRequestMessage(privateKey)
-    // make the message signature invalid
-    signature, _ := toSignature(message["signature"])
-    signature.signature[0] = signature.signature[0] + 1
+    message := createPubsubChallengeRequestMessage()
+
+    // no signature
     encodedMessage := cborEncode(message)
     err := publishPubsubMessage(encodedMessage)
     if (err != nil && err.Error() != "validation failed") {
         t.Fatalf(`publish error is "%v" instead of "validation failed"`, err)
+    }
+
+    // add signature
+    signPubsubMessage(message, privateKey)
+
+    // make signature invalid
+    messageSignature, ok := message["signature"].(map[string]interface{})
+    if !ok {
+        t.Fatalf(`failed convert message.signature to map[string{}]interface{}`)
+    }
+    signature, ok := messageSignature["signature"].([]byte)
+    if !ok {
+        t.Fatalf(`failed convert message.signature.signature to []byte`)
+    }
+    signature[0] = signature[0] + 1
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil && err.Error() != "validation failed") {
+        t.Fatalf(`publish error is "%v" instead of "validation failed"`, err)
+    }
+}
+
+func TestInvalidPubsubMessageType(t *testing.T) {
+    privateKey := generatePrivateKey()
+    message := createPubsubChallengeRequestMessage()
+
+    // make message type invalid
+    message["type"] = "INVALID"
+    signPubsubMessage(message, privateKey)
+    encodedMessage := cborEncode(message)
+    err := publishPubsubMessage(encodedMessage)
+    if (err != nil && err.Error() != "validation failed") {
+        t.Fatalf(`publish error is "%v" instead of "validation failed"`, err)
+    }
+
+    // other valid message types
+    message["type"] = "CHALLENGEREQUEST"
+    signPubsubMessage(message, privateKey)
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil) {
+        t.Fatalf(`publish error is "%v" instead of "<nil>"`, err)
+    }
+    message["type"] = "CHALLENGE"
+    signPubsubMessage(message, privateKey)
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil) {
+        t.Fatalf(`publish error is "%v" instead of "<nil>"`, err)
+    }
+    message["type"] = "CHALLENGEANSWER"
+    signPubsubMessage(message, privateKey)
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil) {
+        t.Fatalf(`publish error is "%v" instead of "<nil>"`, err)
+    }
+    message["type"] = "CHALLENGEVERIFICATION"
+    signPubsubMessage(message, privateKey)
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil) {
+        t.Fatalf(`publish error is "%v" instead of "<nil>"`, err)
     }
 }

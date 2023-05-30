@@ -7,10 +7,10 @@ import (
     peer "github.com/libp2p/go-libp2p/core/peer"
 )
 
-func verifyMessageSignature(message map[string]interface{}) bool {
+func validateMessageSignature(message map[string]interface{}) bool {
     signature, err := toSignature(message["signature"])
     if (err != nil) {
-        fmt.Println("failed cbor decode", err)
+        fmt.Println("invalid signature, failed cbor decode", err)
         return false
     }
 
@@ -23,8 +23,21 @@ func verifyMessageSignature(message map[string]interface{}) bool {
     return true
 }
 
+func validateMessageType(message map[string]interface{}) bool {
+    messageType, ok := message["type"].(string)
+    if !ok {
+        fmt.Println("invalid message type, failed convert message.type to string")
+        return false
+    }
+
+    if messageType != "CHALLENGEREQUEST" && messageType != "CHALLENGE" && messageType != "CHALLENGEANSWER" && messageType != "CHALLENGEVERIFICATION" {
+        fmt.Println("invalid message type")
+        return false
+    }
+    return true
+}
+
 func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
-    // fmt.Println("context", ctx, "peerId", peerId, "pubsubMessage", pubsubMessage)
     message, err := cborDecode(pubsubMessage.Data)
     if (err != nil) {
         fmt.Println("failed cbor decode", err)
@@ -32,9 +45,13 @@ func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
     }
 
     // validate message type
+    validType := validateMessageType(message)
+    if (validType == false) {
+        return false
+    }
 
     // validate signature
-    signed := verifyMessageSignature(message)
+    signed := validateMessageSignature(message)
     if (signed == false) {
         return false
     }
@@ -43,6 +60,5 @@ func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
 
     // validate pubsub topic if from subplebbit owner
 
-    // fmt.Println(message["type"])
     return true
 }
