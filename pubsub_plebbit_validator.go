@@ -3,6 +3,7 @@ package pubsubPlebbitValidator
 import (
     "context"
     "fmt"
+    "time"
     pubsub "github.com/libp2p/go-libp2p-pubsub"
     peer "github.com/libp2p/go-libp2p/core/peer"
     crypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -72,6 +73,25 @@ func validatePubsubTopic(pubsubTopic string, signature Signature, messageType st
    return true
 }
 
+func validateTimestamp(message map[string]interface{}) bool {
+    timestamp, ok := message["timestamp"].(uint64)
+    if !ok {
+        fmt.Println("invalid message timestamp, failed convert message.timestamp to uint64")
+        return false
+    }
+    now := uint64(time.Now().Unix())
+    fiveMinutes := uint64(60 * 5)
+    if (timestamp > now + fiveMinutes) {
+        fmt.Println("invalid message timestamp, newer than now + 5 minutes")
+        return false
+    }
+    if (timestamp < now - fiveMinutes) {
+        fmt.Println("invalid message timestamp, older than 5 minutes")
+        return false
+    }
+    return true
+}
+
 func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
     // cbor decode
     message, err := cborDecode(pubsubMessage.Data)
@@ -111,6 +131,12 @@ func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
     // validate pubsub topic if from subplebbit owner
     validPubsubTopic := validatePubsubTopic(*pubsubMessage.Topic, signature, messageType)
     if (validPubsubTopic == false) {
+        return false
+    }
+
+    // validate timestamp
+    validTimestamp := validateTimestamp(message)
+    if (validTimestamp == false) {
         return false
     }
 
