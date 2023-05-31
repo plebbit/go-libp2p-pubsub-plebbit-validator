@@ -3,21 +3,38 @@ package pubsubPlebbitValidator
 import (
     "crypto/ed25519"
     codec "github.com/ugorji/go/codec"
+    crypto "github.com/libp2p/go-libp2p/core/crypto"
+    peer "github.com/libp2p/go-libp2p/core/peer"
 )
 
-func generatePrivateKey() ([]byte) {
+func generatePrivateKey() ([]byte, error) {
     _, privateKey, err := ed25519.GenerateKey(nil)
-    if (err != nil) {
-        panic(err)
-    }
     // the real private key without suffix is .Seed()
-    return privateKey.Seed()
+    return privateKey.Seed(), err
 }
 
 func getPublicKeyFromPrivateKey(privateKey []byte) ([]byte) {
     // the real private key without suffix is .Seed()
     publicKey := ed25519.NewKeyFromSeed(privateKey).Public().(ed25519.PublicKey)
     return publicKey
+}
+
+func getPeerIdFromPublicKey(publicKeyBytes []byte) (peer.ID, error) {
+    publicKey, err := crypto.UnmarshalEd25519PublicKey(publicKeyBytes)
+    if (err != nil) {
+        errPeerId, _ := peer.IDFromBytes([]byte{})
+        return errPeerId, err
+    }
+    peerId, err := peer.IDFromPublicKey(publicKey)
+    if (err != nil) {
+        errPeerId, _ := peer.IDFromBytes([]byte{})
+        return errPeerId, err
+    }
+    return peerId, err
+}
+
+func getPeerIdFromPrivateKey(privateKey []byte) (peer.ID, error) {
+    return getPeerIdFromPublicKey(getPublicKeyFromPrivateKey(privateKey))
 }
 
 func signEd25519(bytesToSign []byte, privateKey []byte) ([]byte) {

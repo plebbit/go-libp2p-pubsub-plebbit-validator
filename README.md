@@ -7,7 +7,7 @@ import (
     plebbitValidator "github.com/plebbit/go-libp2p-pubsub-plebbit-validator"
 )
 
-func main () {
+func main() {
     // create libp2p
     host, err := libp2p.New(libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/0"))
     if err != nil {
