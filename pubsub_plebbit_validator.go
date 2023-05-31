@@ -26,7 +26,12 @@ func validateType(messageType string) bool {
     return true
 }
 
-func validateChallengeRequestId(message map[string]interface{}, signature Signature) bool {
+func validateChallengeRequestId(message map[string]interface{}, signature Signature, messageType string) bool {
+    // challenge request id can only be invalid if from non sub owner, ie CHALLENGEREQUEST or CHALLENGEANSWER
+    if messageType != "CHALLENGEREQUEST" && messageType != "CHALLENGEANSWER" {
+        return true
+    }
+
     challengeRequestId, ok := message["challengeRequestId"].([]byte)
     if !ok {
         fmt.Println("invalid message type, failed convert message.challengeRequestId to []byte")
@@ -50,18 +55,21 @@ func validateChallengeRequestId(message map[string]interface{}, signature Signat
 }
 
 func validatePubsubTopic(pubsubTopic string, signature Signature, messageType string) bool {
-    if messageType == "CHALLENGE" || messageType == "CHALLENGEVERIFICATION" {
-        signaturePeerId, err := getPeerIdFromPublicKey(signature.publicKey)
-        if (err != nil) {
-            fmt.Println("invalid pubsub topic, failed getPeerIdFromPublicKey(signature.publicKey)", err)
-            return false
-        }
-        if (pubsubTopic != signaturePeerId.String()) {
-            fmt.Println("invalid pubsub topic, failed pubsubTopic == signaturePeerId")
-            return false   
-        }
+    // pubsub topic can only be invalid if from sub owner, ie CHALLENGE or CHALLENGEVERIFICATION
+    if messageType != "CHALLENGE" && messageType != "CHALLENGEVERIFICATION" {
+        return true
     }
-    return true
+
+    signaturePeerId, err := getPeerIdFromPublicKey(signature.publicKey)
+    if (err != nil) {
+        fmt.Println("invalid pubsub topic, failed getPeerIdFromPublicKey(signature.publicKey)", err)
+        return false
+    }
+    if (pubsubTopic != signaturePeerId.String()) {
+        fmt.Println("invalid pubsub topic, failed pubsubTopic == signaturePeerId")
+        return false   
+    }
+   return true
 }
 
 func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
@@ -95,7 +103,7 @@ func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
     }
 
     // validate challengeRequestId if from author
-    validChallengeRequestId := validateChallengeRequestId(message, signature)
+    validChallengeRequestId := validateChallengeRequestId(message, signature, messageType)
     if (validChallengeRequestId == false) {
         return false
     }
@@ -105,7 +113,6 @@ func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
     if (validPubsubTopic == false) {
         return false
     }
-
 
     // validate too many failed requests forwards
 

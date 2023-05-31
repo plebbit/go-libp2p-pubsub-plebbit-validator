@@ -9,6 +9,7 @@ import (
 )
 
 var subplebbitPrivateKey []byte = []byte{49,69,50,213,51,78,20,35,193,100,36,247,205,129,13,190,124,95,112,200,141,229,111,59,146,66,65,245,169,108,168,184}
+var wrongChallengeRequestId []byte = []byte{0,36,8,1,18,32,244,84,230,177,77,214,35,244,185,233,200,209,89,241,126,211,13,198,231,57,165,9,143,70,222,166,20,35,112,60,6,106}
 
 func tryGeneratePrivateKey() ([]byte) {
     privateKey, err := generatePrivateKey()
@@ -111,6 +112,8 @@ func TestValidPubsubChallengeAnwserMessage(t *testing.T) {
 func TestValidPubsubChallengeMessage(t *testing.T) {
     message := createPubsubChallengeRequestMessage(subplebbitPrivateKey)
     message["type"] = "CHALLENGE"
+    // make sure sub owner can send any challenge request id they want
+    message["challengeRequestId"] = wrongChallengeRequestId
     signPubsubMessage(message, subplebbitPrivateKey)
     encodedMessage := cborEncode(message)
     err := publishPubsubMessage(encodedMessage)
@@ -122,6 +125,8 @@ func TestValidPubsubChallengeMessage(t *testing.T) {
 func TestValidPubsubChallengeVerificationMessage(t *testing.T) {
     message := createPubsubChallengeRequestMessage(subplebbitPrivateKey)
     message["type"] = "CHALLENGEVERIFICATION"
+    // make sure sub owner can send any challenge request id they want
+    message["challengeRequestId"] = wrongChallengeRequestId
     signPubsubMessage(message, subplebbitPrivateKey)
     encodedMessage := cborEncode(message)
     err := publishPubsubMessage(encodedMessage)
@@ -193,6 +198,8 @@ func TestInvalidPubsubMessageType(t *testing.T) {
     // subplebbit message types, only sub owner can publish challenges or challenge verifications
     subplebbitMessage := createPubsubChallengeRequestMessage(subplebbitPrivateKey)
     subplebbitMessage["type"] = "CHALLENGE"
+    // make sure sub owner can send any challenge request id they want
+    message["challengeRequestId"] = wrongChallengeRequestId
     signPubsubMessage(subplebbitMessage, subplebbitPrivateKey)
     encodedMessage = cborEncode(subplebbitMessage)
     err = publishPubsubMessage(encodedMessage)
@@ -200,6 +207,8 @@ func TestInvalidPubsubMessageType(t *testing.T) {
         t.Fatalf(`publish error is "%v" instead of "<nil>"`, err)
     }
     subplebbitMessage["type"] = "CHALLENGEVERIFICATION"
+    // make sure sub owner can send any challenge request id they want
+    message["challengeRequestId"] = wrongChallengeRequestId
     signPubsubMessage(subplebbitMessage, subplebbitPrivateKey)
     encodedMessage = cborEncode(subplebbitMessage)
     err = publishPubsubMessage(encodedMessage)
@@ -213,7 +222,7 @@ func TestInvalidPubsubMessageChallengeRequestId(t *testing.T) {
     message := createPubsubChallengeRequestMessage(privateKey)
 
     // make request challenge id invalid (but a real multihash of a public key)
-    message["challengeRequestId"] = []byte{0,36,8,1,18,32,244,84,230,177,77,214,35,244,185,233,200,209,89,241,126,211,13,198,231,57,165,9,143,70,222,166,20,35,112,60,6,106}
+    message["challengeRequestId"] = wrongChallengeRequestId
     signPubsubMessage(message, privateKey)
     encodedMessage := cborEncode(message)
     err := publishPubsubMessage(encodedMessage)
