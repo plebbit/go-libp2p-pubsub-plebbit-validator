@@ -1,4 +1,4 @@
-module pubsub-plebbit-validator
+module github.com/plebbit/go-libp2p-pubsub-plebbit-validator
 
 go 1.19
 
