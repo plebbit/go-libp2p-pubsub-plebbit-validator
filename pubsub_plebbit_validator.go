@@ -7,7 +7,10 @@ import (
     pubsub "github.com/libp2p/go-libp2p-pubsub"
     peer "github.com/libp2p/go-libp2p/core/peer"
     crypto "github.com/libp2p/go-libp2p/core/crypto"
+    // lru "github.com/hashicorp/golang-lru/v2"
 )
+
+// var cache lru.Cache = lru.New[string, string](int(10000))
 
 func validateSignature(message map[string]interface{}, signature Signature) bool {
     bytesToSign := getBytesToSign(message, signature.signedPropertyNames)
@@ -92,7 +95,12 @@ func validateTimestamp(message map[string]interface{}) bool {
     return true
 }
 
-func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
+func validatePeer(message map[string]interface{}, peerId peer.ID) bool {
+    // fmt.Println(message, peerId)
+    return true
+}
+
+func Validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
     // cbor decode
     message, err := cborDecode(pubsubMessage.Data)
     if (err != nil) {
@@ -141,6 +149,10 @@ func validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
     }
 
     // validate too many failed requests forwards
+    validPeer := validatePeer(message, peerId)
+    if (validPeer == false) {
+        return false
+    }
 
     return true
 }
