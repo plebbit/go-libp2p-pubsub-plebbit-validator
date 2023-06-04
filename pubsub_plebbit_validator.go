@@ -7,10 +7,9 @@ import (
     pubsub "github.com/libp2p/go-libp2p-pubsub"
     peer "github.com/libp2p/go-libp2p/core/peer"
     crypto "github.com/libp2p/go-libp2p/core/crypto"
-    // lru "github.com/hashicorp/golang-lru/v2"
+    lru "github.com/hashicorp/golang-lru/v2"
+    host "github.com/libp2p/go-libp2p/core/host"
 )
-
-// var cache lru.Cache = lru.New[string, string](int(10000))
 
 func validateSignature(message map[string]interface{}, signature Signature) bool {
     bytesToSign := getBytesToSign(message, signature.signedPropertyNames)
@@ -95,13 +94,45 @@ func validateTimestamp(message map[string]interface{}) bool {
     return true
 }
 
-func validatePeer(message map[string]interface{}, peerId peer.ID) bool {
-    // fmt.Println(message, peerId)
+func getPeerHostnames(peerId peer.ID, host host.Host) ([]string, error) {
+    peerMultiAddresses := host.Peerstore().Addrs(peerId)
+    peerHostnames := make([]string, len(peerMultiAddresses))
+    for i := 0; i < len(peerMultiAddresses); i++ {
+        firstProtocolCode := peerMultiAddresses[i].Protocols()[0].Code
+        firstProtocolValue, err := peerMultiAddresses[i].ValueForProtocol(firstProtocolCode)
+        if (err != nil) {
+            return []string{}, err
+        }
+        peerHostnames[i] = firstProtocolValue
+    }
+    return peerHostnames, nil
+}
+
+func validatePeer(message map[string]interface{}, peerId peer.ID, validator Validator) bool {
+    peerHostnames, err := getPeerHostnames(peerId, validator.host)
+   if (err != nil) {
+        fmt.Println("failed getPeerHostnames(peerId, host)", err)
+        return false
+    }
+    fmt.Println(peerHostnames)
     return true
 }
 
-func Validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
-    // cbor decode
+type Validator struct {
+    host host.Host
+    peerHostnameCache *lru.Cache[string, string]
+}
+
+func NewValidator(host host.Host) Validator {
+    peerHostnameCache, _ := lru.New[string, string](10000)
+    return Validator{
+        host,
+        peerHostnameCache,
+    }
+}
+
+func (validator Validator) Validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message) bool {
+   // cbor decode
     message, err := cborDecode(pubsubMessage.Data)
     if (err != nil) {
         fmt.Println("failed cbor decode", err)
@@ -149,7 +180,7 @@ func Validate(ctx context.Context, peerId peer.ID, pubsubMessage *pubsub.Message
     }
 
     // validate too many failed requests forwards
-    validPeer := validatePeer(message, peerId)
+    validPeer := validatePeer(message, peerId, validator)
     if (validPeer == false) {
         return false
     }

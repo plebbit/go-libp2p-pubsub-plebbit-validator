@@ -26,7 +26,8 @@ func createPubsubTopic(ctx context.Context, subplebbitPrivateKey []byte) *pubsub
         panic(err)
     }
     // create pubsub with plebbit validator
-    ps, err := pubsub.NewGossipSub(ctx, host, pubsub.WithDefaultValidator(Validate))
+    validator := NewValidator(host)
+    ps, err := pubsub.NewGossipSub(ctx, host, pubsub.WithDefaultValidator(validator.Validate))
     if err != nil {
         panic(err)
     }
