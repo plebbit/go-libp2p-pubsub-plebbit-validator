@@ -29,17 +29,12 @@ func validateType(messageType string) bool {
     return true
 }
 
-func validateChallengeRequestId(message map[string]interface{}, signature Signature, messageType string) bool {
+func validateChallengeRequestId(challengeRequestId []byte, signature Signature, messageType string) bool {
     // challenge request id can only be invalid if from non sub owner, ie CHALLENGEREQUEST or CHALLENGEANSWER
     if messageType != "CHALLENGEREQUEST" && messageType != "CHALLENGEANSWER" {
         return true
     }
 
-    challengeRequestId, ok := message["challengeRequestId"].([]byte)
-    if !ok {
-        fmt.Println("invalid message type, failed convert message.challengeRequestId to []byte")
-        return false
-    }
     publicKey, err := crypto.UnmarshalEd25519PublicKey(signature.publicKey)
     if (err != nil) {
         fmt.Println("invalid challenge request id, failed crypto.UnmarshalEd25519PublicKey(signature.publicKey)", err)
@@ -108,26 +103,72 @@ func getPeerHostnames(peerId peer.ID, host host.Host) ([]string, error) {
     return peerHostnames, nil
 }
 
-func validatePeer(message map[string]interface{}, peerId peer.ID, validator Validator) bool {
+func validatePeer(message map[string]interface{}, challengeRequestId []byte, peerId peer.ID, messageType string, validator Validator) bool {
+    // nothing to do for challenge message type
+    if (messageType == "CHALLENGE") {
+        return true
+    }
+
+    challengeRequestIdString := string(challengeRequestId)
+    if (!validator.challenges.Contains(challengeRequestIdString)) {
+        validator.challenges.Add(challengeRequestIdString, make(map[string]bool))
+    }
+    challengePeerHostnames, _ := validator.challenges.Get(challengeRequestIdString)
+
+    if (messageType == "CHALLENGEVERIFICATION") {
+        // update the peer hostname completedChallengeCount
+        for peerHostname := range challengePeerHostnames {
+            if (validator.hostnamesStatistics.Contains(peerHostname)) {
+                hostnameStatistics, _ := validator.hostnamesStatistics.Get(peerHostname)
+                hostnameStatistics.completedChallengeCount++
+            }
+        }
+
+        // delete the challenge because it's now completed
+        validator.challenges.Remove(challengeRequestIdString)
+        return true
+    }
+
     peerHostnames, err := getPeerHostnames(peerId, validator.host)
-   if (err != nil) {
+    if (err != nil) {
         fmt.Println("failed getPeerHostnames(peerId, host)", err)
         return false
     }
     fmt.Println(peerHostnames)
+
+    for i := 0; i < len(peerHostnames); i++ {
+        // handle setting Validator.hostnamesStatistics
+        if (!validator.hostnamesStatistics.Contains(peerHostnames[i])) {
+            validator.hostnamesStatistics.Add(peerHostnames[i], HostnameStatistics{1, 0})
+        } else {
+            hostnameStatistics, _ := validator.hostnamesStatistics.Get(peerHostnames[i])
+            hostnameStatistics.challengeCount++
+        }
+
+        // handle setting Validator.challenges
+        challengePeerHostnames[peerHostnames[i]] = true
+    }
     return true
+}
+
+type HostnameStatistics struct {
+    challengeCount uint
+    completedChallengeCount uint
 }
 
 type Validator struct {
     host host.Host
-    peerHostnameCache *lru.Cache[string, string]
+    challenges *lru.Cache[string, map[string]bool]
+    hostnamesStatistics *lru.Cache[string, HostnameStatistics]
 }
 
 func NewValidator(host host.Host) Validator {
-    peerHostnameCache, _ := lru.New[string, string](10000)
+    challenges, _ := lru.New[string, map[string]bool](10000)
+    hostnamesStatistics, _ := lru.New[string, HostnameStatistics](10000)
     return Validator{
         host,
-        peerHostnameCache,
+        challenges,
+        hostnamesStatistics,
     }
 }
 
@@ -148,6 +189,11 @@ func (validator Validator) Validate(ctx context.Context, peerId peer.ID, pubsubM
         fmt.Println("invalid message type, failed convert message.type to string")
         return false
     }
+    challengeRequestId, ok := message["challengeRequestId"].([]byte)
+    if !ok {
+        fmt.Println("invalid challenge request id, failed convert message.challengeRequestId to []byte")
+        return false
+    }
 
     // validate message type
     validType := validateType(messageType)
@@ -162,7 +208,7 @@ func (validator Validator) Validate(ctx context.Context, peerId peer.ID, pubsubM
     }
 
     // validate challengeRequestId if from author
-    validChallengeRequestId := validateChallengeRequestId(message, signature, messageType)
+    validChallengeRequestId := validateChallengeRequestId(challengeRequestId, signature, messageType)
     if (validChallengeRequestId == false) {
         return false
     }
@@ -180,10 +226,18 @@ func (validator Validator) Validate(ctx context.Context, peerId peer.ID, pubsubM
     }
 
     // validate too many failed requests forwards
-    validPeer := validatePeer(message, peerId, validator)
+    validPeer := validatePeer(message, challengeRequestId, peerId, messageType, validator)
     if (validPeer == false) {
         return false
     }
+
+    // debug validator
+    // fmt.Println(validator.challenges.Keys())
+    // fmt.Println(validator.hostnamesStatistics.Keys())
+    // peerHostnames := validator.hostnamesStatistics.Keys()
+    // for i := 0; i < len(peerHostnames); i++ {
+    //     fmt.Println(validator.hostnamesStatistics.Get(peerHostnames[i]))
+    // }
 
     return true
 }
