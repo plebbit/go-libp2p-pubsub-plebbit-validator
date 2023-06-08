@@ -27,7 +27,12 @@ func createPubsubTopic(ctx context.Context, subplebbitPrivateKey []byte) *pubsub
     }
     // create pubsub with plebbit validator
     validator := NewValidator(host)
-    ps, err := pubsub.NewGossipSub(ctx, host, pubsub.WithDefaultValidator(validator.Validate))
+    ps, err := pubsub.NewGossipSub(
+        ctx, 
+        host, 
+        pubsub.WithDefaultValidator(validator.Validate),
+        pubsub.WithPeerScore(&PeerScoreParams, &PeerScoreThresholds),
+    )
     if err != nil {
         panic(err)
     }
@@ -289,6 +294,43 @@ func TestInvalidPubsubTopic(t *testing.T) {
 }
 
 func TestInvalidPubsubMessageTimestamp(t *testing.T) {
+    privateKey := tryGeneratePrivateKey()
+    message := createPubsubChallengeRequestMessage(privateKey)
+
+    // make message timestamp invalid
+    message["timestamp"] = time.Now().Unix() + int64(60 * 10)
+    signPubsubMessage(message, privateKey)
+    encodedMessage := cborEncode(message)
+    err := publishPubsubMessage(encodedMessage)
+    if (err != nil && err.Error() != "validation failed") {
+        t.Fatalf(`publish error is "%v" instead of "validation failed"`, err)
+    }
+    message["timestamp"] = time.Now().Unix() - int64(60 * 10)
+    signPubsubMessage(message, privateKey)
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil && err.Error() != "validation failed") {
+        t.Fatalf(`publish error is "%v" instead of "validation failed"`, err)
+    }
+
+    // make message timestamp not exactly now, but still valid
+    message["timestamp"] = time.Now().Unix() + int64(60 * 4)
+    signPubsubMessage(message, privateKey)
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil) {
+        t.Fatalf(`publish error is "%v" instead of "<nil>"`, err)
+    }
+    message["timestamp"] = time.Now().Unix() - int64(60 * 4)
+    signPubsubMessage(message, privateKey)
+    encodedMessage = cborEncode(message)
+    err = publishPubsubMessage(encodedMessage)
+    if (err != nil) {
+        t.Fatalf(`publish error is "%v" instead of "<nil>"`, err)
+    }
+}
+
+func TestInvalidPeer(t *testing.T) {
     privateKey := tryGeneratePrivateKey()
     message := createPubsubChallengeRequestMessage(privateKey)
 
