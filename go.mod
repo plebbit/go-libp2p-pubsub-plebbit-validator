@@ -3,8 +3,10 @@ module github.com/plebbit/go-libp2p-pubsub-plebbit-validator
 go 1.19
 
 require (
+	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/libp2p/go-libp2p v0.27.3
 	github.com/libp2p/go-libp2p-pubsub v0.9.3
+	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/ugorji/go/codec v1.1.7
 )
 
@@ -27,7 +29,6 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20230405160723-4a4c7d95572b // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.2 // indirect
 	github.com/huin/goupnp v1.1.0 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect

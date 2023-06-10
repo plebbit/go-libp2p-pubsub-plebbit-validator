@@ -33,6 +33,7 @@ func createPubsubTopic(ctx context.Context, subplebbitPrivateKey []byte) *pubsub
         host, 
         pubsub.WithDefaultValidator(validator.Validate),
         pubsub.WithPeerScore(&peerScoreParams, &PeerScoreThresholds),
+        pubsub.WithMessageIdFn(MessageIdFn),
     )
     if err != nil {
         panic(err)

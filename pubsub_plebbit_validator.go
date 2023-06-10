@@ -6,10 +6,12 @@ import (
     "time"
     "math"
     pubsub "github.com/libp2p/go-libp2p-pubsub"
+    pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
     peer "github.com/libp2p/go-libp2p/core/peer"
     crypto "github.com/libp2p/go-libp2p/core/crypto"
     lru "github.com/hashicorp/golang-lru/v2"
     host "github.com/libp2p/go-libp2p/core/host"
+    blake2b "github.com/minio/blake2b-simd"
 )
 
 func validateSignature(message map[string]interface{}, signature Signature) bool {
@@ -246,4 +248,10 @@ func (validator Validator) AppSpecificScore(peerId peer.ID) float64 {
     // 90% failure ratio: 0.90²×−100000 = -81000
     score := math.Pow(challengeFailureRatio, 2) * worstScore
     return score
+}
+
+// use blake2b because it's faster than sha, copied from https://github.com/filecoin-project/lotus/blob/42d2f4d7e48104c4b8c6f19720e4eef369976442/node/modules/lp2p/pubsub.go
+func MessageIdFn(m *pubsub_pb.Message) string {
+    hash := blake2b.Sum256(m.Data)
+    return string(hash[:])
 }
