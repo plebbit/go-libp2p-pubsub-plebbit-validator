@@ -41,9 +41,9 @@ func validatePeerHostnames(message map[string]interface{}, challengeRequestId []
     if (messageType == "CHALLENGEVERIFICATION") {
         // update the peer hostname completedChallengeCount
         for peerHostname := range challengePeerHostnames {
-            if (validator.hostnamesStatistics.Contains(peerHostname)) {
-                hostnameStatistics, _ := validator.hostnamesStatistics.Get(peerHostname)
-                hostnameStatistics.completedChallengeCount++
+            if (validator.peersStatistics.Contains(peerHostname)) {
+                peerStatistics, _ := validator.peersStatistics.Get(peerHostname)
+                peerStatistics.completedChallengeCount++
             }
         }
 
@@ -63,12 +63,12 @@ func validatePeerHostnames(message map[string]interface{}, challengeRequestId []
 
     // a peer can have multiple hostnames, iterate over all
     for i := 0; i < len(peerHostnames); i++ {
-        // handle setting Validator.hostnamesStatistics
-        if (!validator.hostnamesStatistics.Contains(peerHostnames[i])) {
-            validator.hostnamesStatistics.Add(peerHostnames[i], HostnameStatistics{1, 0})
+        // handle setting Validator.peersStatistics
+        if (!validator.peersStatistics.Contains(peerHostnames[i])) {
+            validator.peersStatistics.Add(peerHostnames[i], PeerStatistics{1, 0})
         } else {
-            hostnameStatistics, _ := validator.hostnamesStatistics.Get(peerHostnames[i])
-            hostnameStatistics.challengeCount++
+            peerStatistics, _ := validator.peersStatistics.Get(peerHostnames[i])
+            peerStatistics.challengeCount++
         }
 
         // handle setting Validator.challenges

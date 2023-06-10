@@ -4,6 +4,7 @@ import (
     "context"
     "fmt"
     "time"
+    "math"
     pubsub "github.com/libp2p/go-libp2p-pubsub"
     peer "github.com/libp2p/go-libp2p/core/peer"
     crypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -95,55 +96,45 @@ func validatePeer(message map[string]interface{}, challengeRequestId []byte, pee
         return true
     }
 
-    // // get challenge request id string
-    // challengeRequestIdString := string(challengeRequestId)
-    // if (!validator.challenges.Contains(challengeRequestIdString)) {
-    //     validator.challenges.Add(challengeRequestIdString, make(map[string]bool))
-    // }
-    // // get peer hostnames associated with the challenge request id
-    // challengePeerHostnames, _ := validator.challenges.Get(challengeRequestIdString)
+    peerIdString := string(peerId)
 
-    // // on challenge verification, challenges and peer statistics are updated with the completed challenge
-    // if (messageType == "CHALLENGEVERIFICATION") {
-    //     // update the peer hostname completedChallengeCount
-    //     for peerHostname := range challengePeerHostnames {
-    //         if (validator.hostnamesStatistics.Contains(peerHostname)) {
-    //             hostnameStatistics, _ := validator.hostnamesStatistics.Get(peerHostname)
-    //             hostnameStatistics.completedChallengeCount++
-    //         }
-    //     }
+    // get challenge request id string
+    challengeRequestIdString := string(challengeRequestId)
+    if (!validator.challenges.Contains(challengeRequestIdString)) {
+        validator.challenges.Add(challengeRequestIdString, make(map[string]bool))
+    }
+    // get peer hostnames associated with the challenge request id
+    challengePeers, _ := validator.challenges.Get(challengeRequestIdString)
 
-    //     // delete the challenge because it's now completed
-    //     validator.challenges.Remove(challengeRequestIdString)
-    //     return true
-    // }
+    // on challenge verification, challenges and peer statistics are updated with the completed challenge
+    if (messageType == "CHALLENGEVERIFICATION") {
+        // update the peer hostname completedChallengeCount
+        if (validator.peersStatistics.Contains(peerIdString)) {
+            peerStatistics, _ := validator.peersStatistics.Get(peerIdString)
+            peerStatistics.completedChallengeCount++
+        }
 
-    // // the 2 message types left are CHALLENGEREQUEST AND CHALLENGEANSWER
+        // delete the challenge because it's now completed
+        validator.challenges.Remove(challengeRequestIdString)
+        return true
+    }
 
-    // // get the peer hostnames of the message sender
-    // peerHostnames, err := getPeerHostnames(peerId, validator.host)
-    // if (err != nil) {
-    //     fmt.Println("failed getPeerHostnames(peerId, host)", err)
-    //     return false
-    // }
+    // the 2 message types left are CHALLENGEREQUEST AND CHALLENGEANSWER
 
-    // // a peer can have multiple hostnames, iterate over all
-    // for i := 0; i < len(peerHostnames); i++ {
-    //     // handle setting Validator.hostnamesStatistics
-    //     if (!validator.hostnamesStatistics.Contains(peerHostnames[i])) {
-    //         validator.hostnamesStatistics.Add(peerHostnames[i], HostnameStatistics{1, 0})
-    //     } else {
-    //         hostnameStatistics, _ := validator.hostnamesStatistics.Get(peerHostnames[i])
-    //         hostnameStatistics.challengeCount++
-    //     }
+    // handle setting Validator.peersStatistics
+    if (!validator.peersStatistics.Contains(peerIdString)) {
+        validator.peersStatistics.Add(peerIdString, PeerStatistics{1, 0})
+    } else {
+        peerStatistics, _ := validator.peersStatistics.Get(peerIdString)
+        peerStatistics.challengeCount++
+    }
 
-    //     // handle setting Validator.challenges
-    //     challengePeerHostnames[peerHostnames[i]] = true
-    // }
+    // handle setting Validator.challenges
+    challengePeers[peerIdString] = true
     return true
 }
 
-type HostnameStatistics struct {
+type PeerStatistics struct {
     challengeCount uint
     completedChallengeCount uint
 }
@@ -151,16 +142,16 @@ type HostnameStatistics struct {
 type Validator struct {
     host host.Host
     challenges *lru.Cache[string, map[string]bool]
-    hostnamesStatistics *lru.Cache[string, HostnameStatistics]
+    peersStatistics *lru.Cache[string, PeerStatistics]
 }
 
 func NewValidator(host host.Host) Validator {
     challenges, _ := lru.New[string, map[string]bool](10000)
-    hostnamesStatistics, _ := lru.New[string, HostnameStatistics](10000)
+    peersStatistics, _ := lru.New[string, PeerStatistics](10000)
     return Validator{
         host,
         challenges,
-        hostnamesStatistics,
+        peersStatistics,
     }
 }
 
@@ -223,13 +214,36 @@ func (validator Validator) Validate(ctx context.Context, peerId peer.ID, pubsubM
         return false
     }
 
-    // debug validator
+    // debug peer validator
     // fmt.Println(validator.challenges.Keys())
-    // fmt.Println(validator.hostnamesStatistics.Keys())
-    // peerHostnames := validator.hostnamesStatistics.Keys()
-    // for i := 0; i < len(peerHostnames); i++ {
-    //     fmt.Println(validator.hostnamesStatistics.Get(peerHostnames[i]))
+    // fmt.Println(validator.peersStatistics.Keys())
+    // peerIds := validator.peersStatistics.Keys()
+    // for i := 0; i < len(peerIds); i++ {
+    //     fmt.Println(validator.peersStatistics.Get(peerIds[i]))
     // }
+    // validator.AppSpecificScore(peerId)
 
     return true
+}
+
+var minimumChallengeCount uint = 100
+var worstScore float64 = -100000
+func (validator Validator) AppSpecificScore(peerId peer.ID) float64 {
+    // disable AppSpecificScore until we can test it more
+    return 0
+
+    peerStatistics, _ := validator.peersStatistics.Get(string(peerId))
+
+    // need a minimum count for statistics to mean something
+    if (peerStatistics.challengeCount < minimumChallengeCount) {
+        return 0
+    }
+
+    challengeFailureRatio := float64(1 - (peerStatistics.completedChallengeCount / peerStatistics.challengeCount))
+    //  1% failure ratio: 0.01²×−100000 = -10
+    // 10% failure ratio: 0.10²×−100000 = -1000
+    // 50% failure ratio: 0.50²×−100000 = -25000
+    // 90% failure ratio: 0.90²×−100000 = -81000
+    score := math.Pow(challengeFailureRatio, 2) * worstScore
+    return score
 }
