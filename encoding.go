@@ -3,6 +3,8 @@ package pubsubPlebbitValidator
 import (
     "errors"
     codec "github.com/ugorji/go/codec"
+    cbor "github.com/fxamacker/cbor/v2"
+    "bytes"
 )
 
 func cborDecode(encoded []byte) (map[string]interface{}, error) {
@@ -18,12 +20,14 @@ func cborDecode(encoded []byte) (map[string]interface{}, error) {
 }
 
 func cborEncode(decoded map[string]interface{}) ([]byte) {
-    var encoded []byte
-    cborHandle := &codec.CborHandle{}
-    cborHandle.Canonical = true
-    encoder := codec.NewEncoderBytes(&encoded, cborHandle)
+    // Object properties are sorted according to the original RFC 7049 canonical representation recommended method: length-first and then bytewise. 
+    options := cbor.CTAP2EncOptions()
+
+    encMode, _ := options.EncMode()
+    var encoded bytes.Buffer
+    encoder := encMode.NewEncoder(&encoded)
     encoder.Encode(decoded)
-    return encoded
+    return encoded.Bytes()
 }
 
 type Signature struct {

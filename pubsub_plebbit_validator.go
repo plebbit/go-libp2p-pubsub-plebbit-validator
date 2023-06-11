@@ -73,7 +73,12 @@ func validatePubsubTopic(pubsubTopic string, signature Signature, messageType st
    return true
 }
 
-func validateTimestamp(message map[string]interface{}) bool {
+func validateTimestamp(message map[string]interface{}, validator Validator) bool {
+    // ignore timestamp for tests that use old hardcoded signatures
+    if (validator.noTimestamp) {
+        return true
+    }
+
     timestamp, ok := message["timestamp"].(uint64)
     if !ok {
         fmt.Println("invalid message timestamp, failed convert message.timestamp to uint64")
@@ -145,6 +150,7 @@ type Validator struct {
     host host.Host
     challenges *lru.Cache[string, map[string]bool]
     peersStatistics *lru.Cache[string, PeerStatistics]
+    noTimestamp bool
 }
 
 func NewValidator(host host.Host) Validator {
@@ -154,6 +160,7 @@ func NewValidator(host host.Host) Validator {
         host,
         challenges,
         peersStatistics,
+        false,
     }
 }
 
@@ -205,7 +212,7 @@ func (validator Validator) Validate(ctx context.Context, peerId peer.ID, pubsubM
     }
 
     // validate timestamp
-    validTimestamp := validateTimestamp(message)
+    validTimestamp := validateTimestamp(message, validator)
     if (validTimestamp == false) {
         return false
     }
@@ -248,6 +255,11 @@ func (validator Validator) AppSpecificScore(peerId peer.ID) float64 {
     // 90% failure ratio: 0.90²×−100000 = -81000
     score := math.Pow(challengeFailureRatio, 2) * worstScore
     return score
+}
+
+// make it a validator function so it can be mocked
+func (validator Validator) GetNow() uint64 {
+    return uint64(time.Now().Unix())
 }
 
 // use blake2b because it's faster than sha, copied from https://github.com/filecoin-project/lotus/blob/42d2f4d7e48104c4b8c6f19720e4eef369976442/node/modules/lp2p/pubsub.go

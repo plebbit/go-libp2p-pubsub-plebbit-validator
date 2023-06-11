@@ -2,7 +2,6 @@ package pubsubPlebbitValidator
 
 import (
     "crypto/ed25519"
-    codec "github.com/ugorji/go/codec"
     crypto "github.com/libp2p/go-libp2p/core/crypto"
     peer "github.com/libp2p/go-libp2p/core/peer"
 )
@@ -56,10 +55,5 @@ func getBytesToSign(message map[string]interface{}, signedPropertyNames []string
             propsToSign[propertyName] = message[propertyName]
         }
     }
-    var bytesToSign []byte
-    cborHandle := &codec.CborHandle{}
-    cborHandle.Canonical = true
-    encoder := codec.NewEncoderBytes(&bytesToSign, cborHandle)
-    encoder.Encode(propsToSign)
-    return bytesToSign
+    return cborEncode(propsToSign)
 }
